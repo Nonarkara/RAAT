@@ -30,6 +30,12 @@ const resourceUi = {
   },
 };
 
+const chromeUi = {
+  snapshot: { en: "Snapshot", th: "ภาพรวม", zh: "概览" },
+  coreDocs: { en: "Core Documents", th: "เอกสารหลัก", zh: "核心文件" },
+  partnerNetwork: { en: "Partner Network", th: "เครือข่ายพันธมิตร", zh: "合作网络" },
+};
+
 const mobilityTrends = {
   geo: "TH",
   time: "now 7-d",
@@ -53,17 +59,16 @@ function isExternalHref(href) {
   return /^(https?:|mailto:|tel:)/.test(href);
 }
 
+function isAssetHref(href) {
+  return href.startsWith("./docs/") || href.startsWith("./assets/");
+}
+
 function formatIndex(index) {
   return String(index).padStart(2, "0");
 }
 
 function withLang(href) {
-  if (
-    isExternalHref(href) ||
-    href.startsWith("./docs/") ||
-    href.startsWith("./assets/") ||
-    href.startsWith("./media/")
-  ) {
+  if (isExternalHref(href) || href.startsWith("./docs/") || href.startsWith("./assets/") || href.startsWith("./media/")) {
     return href;
   }
   if (href.startsWith("#")) return href;
@@ -88,20 +93,65 @@ function renderButton(link, className = "") {
   }>${link.label}</a>`;
 }
 
+function renderFigure({ src, alt, caption = "", className = "", loading = "lazy" }) {
+  return `
+    <figure class="media-frame ${className}">
+      <img src="${src}" alt="${alt}" loading="${loading}" />
+      ${caption ? `<figcaption class="media-tag">${caption}</figcaption>` : ""}
+    </figure>
+  `;
+}
+
+function renderStatRail(items, className = "") {
+  return `
+    <div class="stat-rail ${className}">
+      ${items
+        .map(
+          ([value, label]) => `
+            <article class="stat-item">
+              <strong>${value}</strong>
+              <span>${label}</span>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderNumberGrid(items, className = "") {
+  return `
+    <div class="number-grid ${className}">
+      ${items
+        .map(
+          ([value, label]) => `
+            <article class="number-item">
+              <strong>${value}</strong>
+              <span>${label}</span>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderDocShelf(docKeys, className = "") {
   return `
     <div class="doc-shelf ${className}">
       ${docKeys
         .map((key, index) => {
           const doc = site.docs[key];
+          const actionLabel = doc.action[state.lang].replace("Open ", "").replace("เปิด ", "").replace("打开 ", "");
+
           return `
             <article class="doc-link">
               <div class="doc-link__index">${formatIndex(index + 1)}</div>
-              <div class="doc-link__meta">
-                <span>RAAT</span>
-                <span>${doc.action[state.lang].replace("Open ", "").replace("เปิด ", "").replace("打开 ", "")}</span>
-              </div>
               <div class="doc-link__body">
+                <div class="doc-link__meta">
+                  <span>RAAT</span>
+                  <span>${actionLabel}</span>
+                </div>
                 <div class="doc-link__title">${doc.title[state.lang]}</div>
                 <p>${doc.meta[state.lang]}</p>
               </div>
@@ -148,6 +198,7 @@ function renderResourceCard(resourceKey, index) {
   if (!resource) return "";
 
   const relatedPage = getNavItem(resource.related);
+  const shouldOpenInNewTab = resource.external || isAssetHref(resource.href);
   const indexLabel = formatIndex(index + 1);
   const fallbackLabel = resource.topic.slice(0, 3).toUpperCase();
 
@@ -161,25 +212,27 @@ function renderResourceCard(resourceKey, index) {
             : `<span>${fallbackLabel}</span>`
         }
       </div>
-      <div class="resource-card__meta">
-        <span>${resourceUi.audience[resource.audience][state.lang]}</span>
-        <span>${resource.type[state.lang]}</span>
-      </div>
-      <div class="resource-card__body">
-        <h3>${resource.title[state.lang]}</h3>
-        <p>${resource.summary[state.lang]}</p>
-      </div>
-      <div class="resource-card__actions">
-        <a href="${withLang(resource.href)}"${
-          resource.external || resource.href.startsWith("./") ? ' target="_blank" rel="noreferrer"' : ""
-        }>${resourceUi.open[state.lang]}</a>
-        ${
-          relatedPage
-            ? `<a href="${withLang(relatedPage.href)}">${resourceUi.related[state.lang]} / ${
-                relatedPage.label[state.lang]
-              }</a>`
-            : ""
-        }
+      <div class="resource-card__content">
+        <div class="resource-card__meta">
+          <span>${resourceUi.audience[resource.audience][state.lang]}</span>
+          <span>${resource.type[state.lang]}</span>
+        </div>
+        <div class="resource-card__body">
+          <h3>${resource.title[state.lang]}</h3>
+          <p>${resource.summary[state.lang]}</p>
+        </div>
+        <div class="resource-card__actions">
+          <a href="${withLang(resource.href)}"${
+            shouldOpenInNewTab ? ' target="_blank" rel="noreferrer"' : ""
+          }>${resourceUi.open[state.lang]}</a>
+          ${
+            relatedPage
+              ? `<a href="${withLang(relatedPage.href)}">${resourceUi.related[state.lang]} / ${
+                  relatedPage.label[state.lang]
+                }</a>`
+              : ""
+          }
+        </div>
       </div>
     </article>
   `;
@@ -226,11 +279,11 @@ function buildTrendsEmbedHref() {
 
 function renderTrendsSection(trends) {
   return `
-    <section class="section section--signal shell" id="pulse" data-reveal>
-      <div class="split-grid split-grid--resource-cta">
-        <div class="content-stack">
+    <section class="section shell" id="pulse" data-reveal>
+      <div class="split-grid split-grid--trend">
+        <div class="surface panel-card panel-stack">
           <p class="eyebrow">${trends.eyebrow}</p>
-          <h2 class="section-title">${trends.title}</h2>
+          <h2 class="section-title section-title--tight">${trends.title}</h2>
           <p class="copy-block">${trends.body}</p>
           <div class="trend-chip-row">
             ${trends.tags.map((tag) => `<span class="trend-chip">${tag}</span>`).join("")}
@@ -244,7 +297,7 @@ function renderTrendsSection(trends) {
             })}
           </div>
         </div>
-        <div class="trends-panel">
+        <div class="surface panel-card trends-panel">
           <iframe
             class="trends-frame"
             src="${buildTrendsEmbedHref()}"
@@ -328,7 +381,7 @@ function renderHeader() {
           </span>
         </a>
 
-        <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+        <button class="nav-toggle ${state.navOpen ? "is-open" : ""}" id="navToggle" aria-label="Toggle navigation">
           <span></span>
           <span></span>
         </button>
@@ -366,7 +419,7 @@ function renderFooter() {
       <div class="shell">
         <div class="footer-head">
           <p class="eyebrow">RAAT</p>
-          <h2 class="section-title">${footer.heading}</h2>
+          <h2 class="section-title section-title--tight">${footer.heading}</h2>
         </div>
 
         <div class="footer-grid">
@@ -425,9 +478,9 @@ function renderFooter() {
 }
 
 function renderHome(page) {
-  const events = renderEventStream(site.events[state.lang].slice(0, 4));
-  const timeline = renderTimeline(site.timeline[state.lang].slice(0, 4));
   const resourcesLabel = getNavItem("resources")?.label[state.lang] || "Resources";
+  const motorsportLabel = getNavItem("motorsport")?.label[state.lang] || "Motorsport";
+  const mobilityLabel = getNavItem("mobility")?.label[state.lang] || "Mobility";
   const homeActionLedger = [
     {
       label: page.utility.items[0][0],
@@ -457,8 +510,8 @@ function renderHome(page) {
   ];
 
   return `
-    <main class="page page-home page-radical">
-      <section class="page-hero page-hero--landing shell" data-reveal>
+    <main class="page page-home">
+      <section class="page-hero shell" data-reveal>
         <div class="hero-copy">
           <p class="eyebrow">${page.hero.eyebrow}</p>
           <h1 class="display-title">${page.hero.title}</h1>
@@ -468,141 +521,116 @@ function renderHome(page) {
           </div>
         </div>
 
-        <div class="hero-stage hero-stage--home">
-          <figure class="media-frame media-frame--hero media-frame--hero-home hero-stage__main">
-            <img src="./assets/home-circuit-dji.jpg" alt="RAAT circuit grid at Chang International Circuit" loading="eager" />
-            <figcaption class="media-tag">National circuit grid / Buriram / source pack</figcaption>
-          </figure>
-          <figure class="media-frame media-frame--inset hero-stage__inset">
-            <img src="./assets/home-fia-stage.jpg" alt="RAAT leadership at FIA congress" loading="lazy" />
-            <figcaption class="media-tag">FIA Asia Pacific Congress / Chiang Mai 2025</figcaption>
-          </figure>
-        </div>
+        ${renderFigure({
+          src: "./assets/home-circuit-dji.jpg",
+          alt: "RAAT circuit grid at Chang International Circuit",
+          caption: "National circuit grid / Buriram",
+          className: "hero-stage media-frame--hero",
+          loading: "eager",
+        })}
 
-        <div class="hero-metrics">
-          <div class="stat-rail">
-            ${page.hero.stats
-              .map(
-                ([value, label]) => `
-                  <article class="stat-item">
-                    <strong>${value}</strong>
-                    <span>${label}</span>
-                  </article>
-                `
-              )
-              .join("")}
+        <aside class="hero-panel">
+          <div class="surface panel-card panel-stack surface--soft">
+            <p class="eyebrow">${chromeUi.snapshot[state.lang]}</p>
+            ${renderStatRail(page.hero.stats, "stat-rail--compact")}
           </div>
-        </div>
-      </section>
-
-      <section class="section section--pathway shell" id="services" data-reveal>
-        <div class="section-head">
-          <p class="eyebrow">${page.utility.eyebrow}</p>
-          <h2 class="section-title">${page.utility.title}</h2>
-          <p class="copy-block">${page.utility.body}</p>
-        </div>
-        ${renderActionLedger(homeActionLedger, "action-ledger--paths")}
-      </section>
-
-      <section class="section section--library" data-reveal>
-        <div class="shell">
-          <div class="section-head">
-            <p class="eyebrow">${page.resourcePreview.eyebrow}</p>
-            <h2 class="section-title">${page.resourcePreview.title}</h2>
-            <p class="copy-block">${page.resourcePreview.body}</p>
-          </div>
-          <div class="resource-theatre">
-            <section class="resource-lane">
-              <div class="resource-lane__head">
-                <p class="eyebrow">${page.resourcePreview.memberTitle}</p>
-              </div>
-              ${renderResourceGrid(page.resourcePreview.memberKeys, "resource-grid--compact")}
-            </section>
-            <aside class="library-focus">
-              <p class="eyebrow">${resourceUi.featured[state.lang]}</p>
-              ${renderDocShelf(["rules", "calendar", "regulations", "mobility"], "doc-shelf--feature")}
-            </aside>
-            <section class="resource-lane">
-              <div class="resource-lane__head">
-                <p class="eyebrow">${page.resourcePreview.publicTitle}</p>
-              </div>
-              ${renderResourceGrid(page.resourcePreview.publicKeys, "resource-grid--compact")}
-            </section>
-          </div>
-          <div class="resource-preview__cta">
-            ${renderButton({ label: resourcesLabel, href: "./resources.html" })}
-          </div>
-        </div>
-      </section>
-
-      <section class="section section--ink section--manifesto-home" data-reveal>
-        <div class="shell content-stack">
-          <div>
+          <div class="surface panel-card panel-stack">
             <p class="eyebrow">${page.manifesto.eyebrow}</p>
-            <h2 class="section-title">${page.manifesto.title}</h2>
-            <p class="copy-block">${page.manifesto.body}</p>
-          </div>
-          <div class="line-stack">
-            ${page.manifesto.points
-              .map(
-                ([title, text]) => `
-                  <article class="line-item">
-                    <strong>${title}</strong>
-                    <p>${text}</p>
-                  </article>
-                `
-              )
-              .join("")}
-          </div>
-          <figure class="media-frame media-frame--wide">
-            <img src="./assets/home-fia-stage.jpg" alt="RAAT at FIA congress" loading="lazy" />
-          </figure>
-        </div>
-      </section>
-
-      <section class="section section--runway shell" data-reveal>
-        <div class="section-head">
-          <p class="eyebrow">${page.motorsport.eyebrow}</p>
-          <h2 class="section-title">${page.motorsport.title}</h2>
-          <p class="copy-block">${page.motorsport.body}</p>
-        </div>
-        <div class="line-stack">
-          <div>${events}</div>
-          <div class="media-stack">
-            <figure class="media-frame media-frame--video">
-              <video autoplay muted loop playsinline preload="metadata" poster="./assets/home-karting-start.jpg">
-                <source src="./media/motorsport-loop.mp4" type="video/mp4" />
-              </video>
-            </figure>
-            <figure class="media-frame media-frame--wide-short">
-              <img src="./assets/home-karting-start.jpg" alt="Karting race start" loading="lazy" />
-            </figure>
-          </div>
-        </div>
-      </section>
-
-      <section class="section section--civic" data-reveal>
-        <div class="shell line-stack">
-          <figure class="media-frame media-frame--portrait">
-            <img src="./assets/mobility-rider.jpg" alt="School mobility and road safety" loading="lazy" />
-            <figcaption class="media-tag">Helmets for Kids 2025-2026</figcaption>
-          </figure>
-          <div>
-            <p class="eyebrow">${page.mobility.eyebrow}</p>
-            <h2 class="section-title">${page.mobility.title}</h2>
-            <p class="copy-block">${page.mobility.body}</p>
-            <div class="number-grid">
-              ${page.mobility.impacts
+            <p class="lead-line">${page.manifesto.body}</p>
+            <div class="line-stack line-stack--compact">
+              ${page.manifesto.points
+                .slice(0, 2)
                 .map(
-                  ([value, label]) => `
-                    <article class="number-item">
-                      <strong>${value}</strong>
-                      <span>${label}</span>
+                  ([title, text]) => `
+                    <article class="line-item line-item--compact">
+                      <strong>${title}</strong>
+                      <p>${text}</p>
                     </article>
                   `
                 )
                 .join("")}
             </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section shell" id="services" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.utility.eyebrow}</p>
+          <h2 class="section-title">${page.utility.title}</h2>
+          <p class="copy-block">${page.utility.body}</p>
+        </div>
+        ${renderActionLedger(homeActionLedger)}
+      </section>
+
+      <section class="section shell" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.resourcePreview.eyebrow}</p>
+          <h2 class="section-title">${page.resourcePreview.title}</h2>
+          <p class="copy-block">${page.resourcePreview.body}</p>
+        </div>
+        <div class="split-grid split-grid--library">
+          <aside class="surface panel-card panel-stack surface--soft">
+            <p class="eyebrow">${resourceUi.featured[state.lang]}</p>
+            ${renderDocShelf(["rules", "calendar", "regulations", "mobility"])}
+          </aside>
+          <div class="content-stack">
+            <div class="resource-columns">
+              <section class="resource-lane">
+                <div class="subsection-head">
+                  <p class="eyebrow">${page.resourcePreview.memberTitle}</p>
+                </div>
+                ${renderResourceGrid(page.resourcePreview.memberKeys, "resource-grid--compact")}
+              </section>
+              <section class="resource-lane">
+                <div class="subsection-head">
+                  <p class="eyebrow">${page.resourcePreview.publicTitle}</p>
+                </div>
+                ${renderResourceGrid(page.resourcePreview.publicKeys, "resource-grid--compact")}
+              </section>
+            </div>
+            <div class="button-row">
+              ${renderButton({ label: resourcesLabel, href: "./resources.html", tone: "plain" })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.motorsport.eyebrow}</p>
+          <h2 class="section-title">${page.motorsport.title}</h2>
+          <p class="copy-block">${page.motorsport.body}</p>
+        </div>
+        <div class="feature-grid feature-grid--balanced">
+          <div class="content-stack">
+            ${renderEventStream(site.events[state.lang].slice(0, 4))}
+            <div class="button-row">
+              ${renderButton({ label: motorsportLabel, href: "./motorsport.html", tone: "plain" })}
+            </div>
+          </div>
+          ${renderFigure({
+            src: "./assets/home-rally-panorama.png",
+            alt: "RAAT rally stage",
+            caption: "Rally championship terrain / source pack",
+            className: "media-frame--wide",
+          })}
+        </div>
+      </section>
+
+      <section class="section shell" data-reveal>
+        <div class="feature-grid feature-grid--balanced feature-grid--reverse">
+          ${renderFigure({
+            src: "./assets/mobility-rider.jpg",
+            alt: "School mobility and road safety",
+            caption: "Helmets for Kids 2025-2026",
+            className: "media-frame--portrait",
+          })}
+          <div class="surface panel-card panel-stack surface--soft">
+            <p class="eyebrow">${page.mobility.eyebrow}</p>
+            <h2 class="section-title section-title--tight">${page.mobility.title}</h2>
+            <p class="copy-block">${page.mobility.body}</p>
+            ${renderNumberGrid(page.mobility.impacts)}
             <div class="line-stack">
               ${page.mobility.services
                 .map(
@@ -615,29 +643,37 @@ function renderHome(page) {
                 )
                 .join("")}
             </div>
+            <div class="button-row">
+              ${renderButton({ label: mobilityLabel, href: "./mobility.html", tone: "plain" })}
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="section section--credibility shell" data-reveal>
+      <section class="section shell" data-reveal>
         <div class="section-head">
           <p class="eyebrow">${page.credibility.eyebrow}</p>
           <h2 class="section-title">${page.credibility.title}</h2>
           <p class="copy-block">${page.credibility.body}</p>
         </div>
-        <div class="feature-grid">
-          <figure class="media-frame media-frame--board">
-            <img src="./assets/board-members.png" alt="RAAT board members" loading="lazy" />
-          </figure>
+        <div class="feature-grid feature-grid--balanced">
           <div class="content-stack">
-            ${timeline}
+            ${renderTimeline(site.timeline[state.lang].slice(0, 4))}
             ${renderDocShelf(page.credibility.docKeys)}
           </div>
+          ${renderFigure({
+            src: "./assets/board-members.png",
+            alt: "RAAT board members",
+            className: "media-frame--board",
+          })}
         </div>
       </section>
 
-      <section class="section section--partner-field shell" data-reveal>
-        ${renderPartnerRiver()}
+      <section class="section shell section--partners" data-reveal>
+        <div class="surface panel-card panel-stack surface--soft">
+          <p class="eyebrow">${chromeUi.partnerNetwork[state.lang]}</p>
+          ${renderPartnerRiver()}
+        </div>
       </section>
     </main>
   `;
@@ -645,32 +681,31 @@ function renderHome(page) {
 
 function renderAbout(page) {
   return `
-    <main class="page page-about page-radical">
-      <section class="page-hero page-hero--archive shell page-hero--inner" data-reveal>
+    <main class="page page-about">
+      <section class="page-hero shell" data-reveal>
         <div class="hero-copy">
           <p class="eyebrow">${page.hero.eyebrow}</p>
           <h1 class="display-title">${page.hero.title}</h1>
           <p class="lede">${page.hero.deck}</p>
         </div>
-        <div class="hero-media hero-media--about">
-          <figure class="media-frame media-frame--wide">
-            <img src="./assets/history-race-ceremony.jpg" alt="Historic Thai racing ceremony" loading="lazy" />
-          </figure>
-          <div class="archive-strip">
-            <figure class="media-frame media-frame--stack">
-              <img src="./assets/history-campbell-trophy.jpg" alt="Historic newspaper archive" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--stack">
-              <img src="./assets/history-family-1930s.jpg" alt="Historic RAAT family archive" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--stack">
-              <img src="./assets/history-vintage-car.jpg" alt="Historic RAAT car archive" loading="lazy" />
-            </figure>
+
+        ${renderFigure({
+          src: "./assets/history-race-ceremony.jpg",
+          alt: "Historic Thai racing ceremony",
+          caption: "Historic race ceremony / archive",
+          className: "hero-stage media-frame--hero",
+          loading: "eager",
+        })}
+
+        <aside class="hero-panel">
+          <div class="surface panel-card panel-stack surface--soft">
+            <p class="eyebrow">${chromeUi.coreDocs[state.lang]}</p>
+            ${renderDocShelf(["history", "board", "regulations"])}
           </div>
-        </div>
+        </aside>
       </section>
 
-      <section class="section section--timeline-ribbon shell" id="timeline" data-reveal>
+      <section class="section shell" id="timeline" data-reveal>
         <div class="section-head">
           <p class="eyebrow">${page.timelineIntro.eyebrow}</p>
           <h2 class="section-title">${page.timelineIntro.title}</h2>
@@ -679,46 +714,49 @@ function renderAbout(page) {
         ${renderTimeline(site.timeline[state.lang])}
       </section>
 
-      <section class="section section--ink section--archive-gallery" id="archive" data-reveal>
-        <div class="shell">
-          <div class="section-head">
-            <p class="eyebrow">${page.archive.eyebrow}</p>
-            <h2 class="section-title">${page.archive.title}</h2>
-            <p class="copy-block">${page.archive.body}</p>
-          </div>
-          <div class="gallery-grid gallery-grid--heritage">
-            <figure class="media-frame media-frame--feature">
-              <img src="./assets/history-beera-car.jpg" alt="Prince Birabongse archive" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--portrait">
-              <img src="./assets/history-family-1930s.jpg" alt="Historic RAAT family archive" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--portrait">
-              <img src="./assets/history-vintage-car.jpg" alt="Historic RAAT car archive" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--wide-short">
-              <img src="./assets/history-campbell-trophy.jpg" alt="Historic Brooklands coverage" loading="lazy" />
-            </figure>
-          </div>
+      <section class="section shell" id="archive" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.archive.eyebrow}</p>
+          <h2 class="section-title">${page.archive.title}</h2>
+          <p class="copy-block">${page.archive.body}</p>
+        </div>
+        <div class="gallery-grid gallery-grid--editorial">
+          ${renderFigure({
+            src: "./assets/history-beera-car.jpg",
+            alt: "Prince Birabongse archive",
+            className: "media-frame--feature",
+          })}
+          ${renderFigure({
+            src: "./assets/history-family-1930s.jpg",
+            alt: "Historic RAAT family archive",
+            className: "media-frame--stack",
+          })}
+          ${renderFigure({
+            src: "./assets/history-campbell-trophy.jpg",
+            alt: "Historic Brooklands coverage",
+            className: "media-frame--stack",
+          })}
         </div>
       </section>
 
-      <section class="section section--governance-ledger shell" id="governance" data-reveal>
-        <div class="feature-grid">
-          <figure class="media-frame media-frame--board">
-            <img src="./assets/board-members.png" alt="RAAT board portrait" loading="lazy" />
-          </figure>
-          <div class="content-stack">
+      <section class="section shell" id="governance" data-reveal>
+        <div class="feature-grid feature-grid--balanced">
+          <div class="surface panel-card panel-stack">
             <p class="eyebrow">${page.governance.eyebrow}</p>
-            <h2 class="section-title">${page.governance.title}</h2>
+            <h2 class="section-title section-title--tight">${page.governance.title}</h2>
             <p class="copy-block">${page.governance.body}</p>
             <p class="lead-line">${page.governance.lead}</p>
             ${renderDocShelf(page.governance.docKeys)}
           </div>
+          ${renderFigure({
+            src: "./assets/board-members.png",
+            alt: "RAAT board portrait",
+            className: "media-frame--board",
+          })}
         </div>
       </section>
 
-      <section class="section section--records shell" data-reveal>
+      <section class="section shell" data-reveal>
         <div class="section-head">
           <p class="eyebrow">${page.resources.eyebrow}</p>
           <h2 class="section-title">${page.resources.title}</h2>
@@ -726,85 +764,78 @@ function renderAbout(page) {
         </div>
         ${renderResourceGrid(page.resources.keys)}
       </section>
-
-      <section class="section section--band-image shell" data-reveal>
-        <figure class="media-frame media-frame--wide-band">
-          <img src="./assets/fia-congress.jpg" alt="RAAT congress image" loading="lazy" />
-        </figure>
-      </section>
     </main>
   `;
 }
 
 function renderMotorsport(page) {
   return `
-    <main class="page page-motorsport page-radical">
-      <section class="page-hero page-hero--speed shell page-hero--inner" data-reveal>
+    <main class="page page-motorsport">
+      <section class="page-hero shell" data-reveal>
         <div class="hero-copy">
           <p class="eyebrow">${page.hero.eyebrow}</p>
           <h1 class="display-title">${page.hero.title}</h1>
           <p class="lede">${page.hero.deck}</p>
         </div>
-        <div class="hero-stage hero-stage--motorsport">
-          <figure class="media-frame media-frame--hero hero-stage__main">
-            <img src="./assets/home-rally-panorama.png" alt="RAAT rally stage" loading="eager" />
-            <figcaption class="media-tag">Rally championship terrain / source pack</figcaption>
-          </figure>
-          <figure class="media-frame media-frame--inset hero-stage__inset">
-            <img src="./assets/home-karting-start.jpg" alt="Karting launch" loading="lazy" />
-            <figcaption class="media-tag">Karting start / national series</figcaption>
-          </figure>
-        </div>
-        <div class="hero-metrics hero-metrics--docs">
-          ${renderDocShelf(["rules", "calendar", "license"], "doc-shelf--hero")}
-        </div>
+
+        ${renderFigure({
+          src: "./assets/home-rally-panorama.png",
+          alt: "RAAT rally stage",
+          caption: "National rally terrain / source pack",
+          className: "hero-stage media-frame--hero",
+          loading: "eager",
+        })}
+
+        <aside class="hero-panel">
+          <div class="surface panel-card panel-stack surface--soft">
+            <p class="eyebrow">${chromeUi.coreDocs[state.lang]}</p>
+            ${renderDocShelf(["rules", "calendar", "license"])}
+          </div>
+        </aside>
       </section>
 
-      <section class="section section--calendar-ledger shell" id="calendar" data-reveal>
+      <section class="section shell" id="calendar" data-reveal>
         <div class="section-head">
           <p class="eyebrow">${page.calendarIntro.eyebrow}</p>
           <h2 class="section-title">${page.calendarIntro.title}</h2>
           <p class="copy-block">${page.calendarIntro.body}</p>
         </div>
-        <div class="feature-grid">
-          <div>${renderEventStream(site.events[state.lang])}</div>
-          <div class="media-stack">
-            <figure class="media-frame media-frame--wide">
-              <img src="./assets/home-circuit-dji.jpg" alt="Circuit event grid" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--wide-short">
-              <img src="./assets/home-karting-start.jpg" alt="Karting launch" loading="lazy" />
-            </figure>
-          </div>
-        </div>
-      </section>
-
-      <section class="section section--ink section--discipline-slab" id="disciplines" data-reveal>
-        <div class="shell">
-          <div class="section-head">
-            <p class="eyebrow">${page.disciplines.eyebrow}</p>
-            <h2 class="section-title">${page.disciplines.title}</h2>
-          </div>
-          <div class="rail-grid">
-            ${page.disciplines.items
-              .map(
-                ([title, text]) => `
-                  <article class="rail-item">
-                    <strong>${title}</strong>
-                    <p>${text}</p>
-                  </article>
-                `
-              )
-              .join("")}
-          </div>
-        </div>
-      </section>
-
-      <section class="section section--license-flow shell" id="license" data-reveal>
-        <div class="feature-grid">
+        <div class="feature-grid feature-grid--balanced">
           <div class="content-stack">
+            ${renderEventStream(site.events[state.lang])}
+          </div>
+          ${renderFigure({
+            src: "./assets/home-circuit-dji.jpg",
+            alt: "Circuit event grid",
+            className: "media-frame--wide",
+          })}
+        </div>
+      </section>
+
+      <section class="section shell" id="disciplines" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.disciplines.eyebrow}</p>
+          <h2 class="section-title">${page.disciplines.title}</h2>
+        </div>
+        <div class="rail-grid">
+          ${page.disciplines.items
+            .map(
+              ([title, text]) => `
+                <article class="rail-item">
+                  <strong>${title}</strong>
+                  <p>${text}</p>
+                </article>
+              `
+            )
+            .join("")}
+        </div>
+      </section>
+
+      <section class="section shell" id="license" data-reveal>
+        <div class="feature-grid feature-grid--balanced">
+          <div class="surface panel-card panel-stack">
             <p class="eyebrow">${page.license.eyebrow}</p>
-            <h2 class="section-title">${page.license.title}</h2>
+            <h2 class="section-title section-title--tight">${page.license.title}</h2>
             <p class="copy-block">${page.license.body}</p>
             <div class="step-flow">
               ${page.license.steps
@@ -822,35 +853,37 @@ function renderMotorsport(page) {
                 .join("")}
             </div>
           </div>
-          <div class="media-stack">
-            <figure class="media-frame media-frame--poster">
-              <img src="./assets/license-ways.png" alt="License channels poster" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--poster">
-              <img src="./assets/license-steps.png" alt="License steps poster" loading="lazy" />
-            </figure>
+          <div class="gallery-grid gallery-grid--stacked">
+            ${renderFigure({
+              src: "./assets/license-ways.png",
+              alt: "License channels poster",
+              className: "media-frame--poster",
+            })}
+            ${renderFigure({
+              src: "./assets/license-steps.png",
+              alt: "License steps poster",
+              className: "media-frame--poster",
+            })}
           </div>
         </div>
       </section>
 
-      <section class="section section--rules-ledger" id="rules" data-reveal>
-        <div class="shell">
-          <div class="section-head">
-            <p class="eyebrow">${page.rulesIntro.eyebrow}</p>
-            <h2 class="section-title">${page.rulesIntro.title}</h2>
-            <p class="copy-block">${page.rulesIntro.body}</p>
-          </div>
-          ${renderDocShelf(page.rulesIntro.docKeys)}
+      <section class="section shell" id="rules" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.rulesIntro.eyebrow}</p>
+          <h2 class="section-title">${page.rulesIntro.title}</h2>
+          <p class="copy-block">${page.rulesIntro.body}</p>
         </div>
+        ${renderDocShelf(page.rulesIntro.docKeys)}
       </section>
 
-      <section class="section section--resource-ledger shell" data-reveal>
+      <section class="section shell" data-reveal>
         <div class="section-head">
           <p class="eyebrow">${page.resources.eyebrow}</p>
           <h2 class="section-title">${page.resources.title}</h2>
           <p class="copy-block">${page.resources.body}</p>
         </div>
-        ${renderResourceGrid(page.resources.keys, "resource-grid--dense")}
+        ${renderResourceGrid(page.resources.keys)}
       </section>
     </main>
   `;
@@ -858,8 +891,8 @@ function renderMotorsport(page) {
 
 function renderMobility(page) {
   return `
-    <main class="page page-mobility page-radical">
-      <section class="page-hero page-hero--civic shell page-hero--inner" data-reveal>
+    <main class="page page-mobility">
+      <section class="page-hero shell" data-reveal>
         <div class="hero-copy">
           <p class="eyebrow">${page.hero.eyebrow}</p>
           <h1 class="display-title">${page.hero.title}</h1>
@@ -878,49 +911,32 @@ function renderMobility(page) {
             })}
           </div>
         </div>
-        <div class="hero-media hero-media--mobility">
-          <figure class="media-frame media-frame--wide">
-            <img src="./assets/mobility-rider.jpg" alt="Student using RAAT helmet on a motorcycle ride" loading="lazy" />
-            <figcaption class="media-tag">School mobility / Helmets for Kids 2025-2026</figcaption>
-          </figure>
-          <div class="hero-sidecar hero-sidecar--mobility">
-            <figure class="media-frame media-frame--stack">
-              <img src="./assets/mobility-ceremony-helmets.jpg" alt="Helmet ceremony" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--stack">
-              <img src="./assets/mobility-helmets-close.jpg" alt="Safety helmets" loading="lazy" />
-            </figure>
-          </div>
-        </div>
-      </section>
 
-      <section class="section section--impact-ledger shell" id="impact" data-reveal>
-        <div class="section-head">
-          <p class="eyebrow">${page.impact.eyebrow}</p>
-          <h2 class="section-title">${page.impact.title}</h2>
-          <p class="copy-block">${page.impact.body}</p>
-        </div>
-        <div class="number-grid number-grid--wide">
-          ${page.impact.numbers
-            .map(
-              ([value, label]) => `
-                <article class="number-item">
-                  <strong>${value}</strong>
-                  <span>${label}</span>
-                </article>
-              `
-            )
-            .join("")}
-        </div>
+        ${renderFigure({
+          src: "./assets/mobility-rider.jpg",
+          alt: "Student using RAAT helmet on a motorcycle ride",
+          caption: "School mobility / Helmets for Kids",
+          className: "hero-stage media-frame--hero",
+          loading: "eager",
+        })}
+
+        <aside class="hero-panel">
+          <div class="surface panel-card panel-stack surface--soft">
+            <p class="eyebrow">${page.impact.eyebrow}</p>
+            <h2 class="section-title section-title--tight">${page.impact.title}</h2>
+            <p class="copy-block">${page.impact.body}</p>
+            ${renderNumberGrid(page.impact.numbers)}
+          </div>
+        </aside>
       </section>
 
       ${renderTrendsSection(page.trends)}
 
-      <section class="section section--ink section--service-slab" id="services" data-reveal>
-        <div class="shell feature-grid">
-          <div class="content-stack">
+      <section class="section shell" id="services" data-reveal>
+        <div class="feature-grid feature-grid--balanced">
+          <div class="surface panel-card panel-stack">
             <p class="eyebrow">${page.services.eyebrow}</p>
-            <h2 class="section-title">${page.services.title}</h2>
+            <h2 class="section-title section-title--tight">${page.services.title}</h2>
             <p class="copy-block">${page.services.body}</p>
             <div class="line-stack">
               ${page.services.lanes
@@ -935,43 +951,42 @@ function renderMobility(page) {
                 .join("")}
             </div>
           </div>
-          <div class="gallery-grid gallery-grid--mobility">
-            <figure class="media-frame media-frame--feature">
-              <img src="./assets/mobility-students-group.jpg" alt="Students and partners in helmet handover ceremony" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--portrait">
-              <img src="./assets/mobility-ceremony-helmets.jpg" alt="Safety ceremony" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--portrait">
-              <img src="./assets/mobility-helmets-close.jpg" alt="Helmet preparation details" loading="lazy" />
-            </figure>
+          <div class="gallery-grid gallery-grid--editorial">
+            ${renderFigure({
+              src: "./assets/mobility-students-group.jpg",
+              alt: "Students and partners in helmet handover ceremony",
+              className: "media-frame--feature",
+            })}
+            ${renderFigure({
+              src: "./assets/mobility-ceremony-helmets.jpg",
+              alt: "Safety ceremony",
+              className: "media-frame--stack",
+            })}
+            ${renderFigure({
+              src: "./assets/mobility-helmets-close.jpg",
+              alt: "Helmet preparation details",
+              className: "media-frame--stack",
+            })}
           </div>
         </div>
       </section>
 
-      <section class="section section--civic-band shell" data-reveal>
-        <div class="feature-grid">
-          <figure class="media-frame media-frame--wide">
-            <img src="./assets/mobility-students-group.jpg" alt="RAAT public partnership" loading="lazy" />
-          </figure>
-          <div class="content-stack">
-            <p class="eyebrow">${page.partnership.eyebrow}</p>
-            <h2 class="section-title">${page.partnership.title}</h2>
-            <p class="copy-block">${page.partnership.body}</p>
-            ${renderPartnerRiver()}
-          </div>
+      <section class="section shell" data-reveal>
+        <div class="surface panel-card panel-stack surface--soft">
+          <p class="eyebrow">${page.partnership.eyebrow}</p>
+          <h2 class="section-title section-title--tight">${page.partnership.title}</h2>
+          <p class="copy-block">${page.partnership.body}</p>
+          ${renderPartnerRiver()}
         </div>
       </section>
 
-      <section class="section section--resource-ledger" data-reveal>
-        <div class="shell">
-          <div class="section-head">
-            <p class="eyebrow">${page.resources.eyebrow}</p>
-            <h2 class="section-title">${page.resources.title}</h2>
-            <p class="copy-block">${page.resources.body}</p>
-          </div>
-          ${renderResourceGrid(page.resources.keys, "resource-grid--dense")}
+      <section class="section shell" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.resources.eyebrow}</p>
+          <h2 class="section-title">${page.resources.title}</h2>
+          <p class="copy-block">${page.resources.body}</p>
         </div>
+        ${renderResourceGrid(page.resources.keys)}
       </section>
     </main>
   `;
@@ -983,8 +998,8 @@ function renderResourcesPage(page) {
   const publicCount = Object.values(site.resources).filter((resource) => resource.audience === "public").length;
 
   return `
-    <main class="page page-resources page-radical">
-      <section class="page-hero page-hero--library shell page-hero--inner" data-reveal>
+    <main class="page page-resources">
+      <section class="page-hero shell" data-reveal>
         <div class="hero-copy">
           <p class="eyebrow">${page.hero.eyebrow}</p>
           <h1 class="display-title">${page.hero.title}</h1>
@@ -992,34 +1007,42 @@ function renderResourcesPage(page) {
           <div class="button-row">
             ${page.contactRail.actions.map((link) => renderButton(link)).join("")}
           </div>
-          <div class="library-stats">
-            <article class="library-stat">
-              <strong>${memberCount}</strong>
-              <span>${page.memberSection.eyebrow}</span>
-            </article>
-            <article class="library-stat">
-              <strong>${publicCount}</strong>
-              <span>${page.publicSection.eyebrow}</span>
-            </article>
-          </div>
         </div>
-        <div class="hero-media hero-media--resources">
-          <figure class="media-frame media-frame--wide">
-            <img src="./assets/home-fia-stage.jpg" alt="RAAT institutional leadership" loading="lazy" />
-            <figcaption class="media-tag">Governance / Membership / Public archive</figcaption>
-          </figure>
-          <div class="hero-sidecar hero-sidecar--resources">
-            <figure class="media-frame media-frame--poster">
-              <img src="./assets/membership-rates.png" alt="RAAT membership poster" loading="lazy" />
-            </figure>
-            <figure class="media-frame media-frame--stack">
-              <img src="./assets/board-members.png" alt="RAAT board and institutional leadership" loading="lazy" />
-            </figure>
-          </div>
+
+        <div class="hero-stage surface panel-card hero-library">
+          <p class="eyebrow">${chromeUi.coreDocs[state.lang]}</p>
+          ${renderDocShelf(["membershipPoster", "contact", "board", "regulations"])}
         </div>
+
+        <aside class="hero-panel">
+          <div class="surface panel-card panel-stack surface--soft">
+            <div class="library-stats">
+              <article class="library-stat">
+                <strong>${memberCount}</strong>
+                <span>${page.memberSection.eyebrow}</span>
+              </article>
+              <article class="library-stat">
+                <strong>${publicCount}</strong>
+                <span>${page.publicSection.eyebrow}</span>
+              </article>
+            </div>
+          </div>
+          <div class="surface panel-card resource-contact">
+            ${contacts
+              .map(
+                ([label, value]) => `
+                  <div>
+                    <span>${label}</span>
+                    <strong>${value}</strong>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        </aside>
       </section>
 
-      <section class="section section--member-ledger shell" data-reveal>
+      <section class="section shell" data-reveal>
         <div class="section-head">
           <p class="eyebrow">${page.memberSection.eyebrow}</p>
           <h2 class="section-title">${page.memberSection.title}</h2>
@@ -1028,28 +1051,26 @@ function renderResourcesPage(page) {
         ${renderResourceGrid(page.memberSection.keys)}
       </section>
 
-      <section class="section section--public-ledger" data-reveal>
-        <div class="shell">
-          <div class="section-head">
-            <p class="eyebrow">${page.publicSection.eyebrow}</p>
-            <h2 class="section-title">${page.publicSection.title}</h2>
-            <p class="copy-block">${page.publicSection.body}</p>
-          </div>
-          ${renderResourceGrid(page.publicSection.keys, "resource-grid--dense")}
+      <section class="section shell" data-reveal>
+        <div class="section-head">
+          <p class="eyebrow">${page.publicSection.eyebrow}</p>
+          <h2 class="section-title">${page.publicSection.title}</h2>
+          <p class="copy-block">${page.publicSection.body}</p>
         </div>
+        ${renderResourceGrid(page.publicSection.keys)}
       </section>
 
-      <section class="section section--ink section--contact-bridge shell" data-reveal>
-        <div class="split-grid split-grid--resource-cta">
-          <div class="content-stack">
+      <section class="section shell" data-reveal>
+        <div class="split-grid split-grid--contact">
+          <div class="surface panel-card panel-stack">
             <p class="eyebrow">${page.contactRail.eyebrow}</p>
-            <h2 class="section-title">${page.contactRail.title}</h2>
+            <h2 class="section-title section-title--tight">${page.contactRail.title}</h2>
             <p class="copy-block">${page.contactRail.body}</p>
             <div class="button-row">
               ${page.contactRail.actions.map((link) => renderButton(link)).join("")}
             </div>
           </div>
-          <div class="resource-contact">
+          <div class="surface panel-card resource-contact">
             ${contacts
               .map(
                 ([label, value]) => `
